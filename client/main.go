@@ -8,17 +8,25 @@ import (
 	"math/rand"
 	"os"
 	"time"
+	"encoding/json"
 
 	"golang.org/x/net/websocket"
 )
 
-type Message struct {
-	Text string `json:"text"`
-}
-
 var (
 	port = flag.String("port", "9000", "port used for ws connection")
 )
+
+type Message struct {
+	Type string `json:"Type"`
+	Text string `json:"Text"`
+}
+
+type Room struct {
+	Teaser string `json:"Teaser"`
+	Description string `json:Description"`
+	Contents string `json:Contents"`
+}
 
 func main() {
 	flag.Parse()
@@ -31,14 +39,16 @@ func main() {
 	defer ws.Close()
 
 	// receive
+	var data []byte
 	var m Message
 	go func() {
 		for {
-			err := websocket.JSON.Receive(ws, &m)
+			err := websocket.JSON.Receive(ws, &data)
 			if err != nil {
 				fmt.Println("Error receiving message: ", err.Error())
 				break
 			}
+			err = json.Unmarshal(data, &m)
 			fmt.Println("Message: ", m)
 		}
 	}()
@@ -51,9 +61,11 @@ func main() {
 			continue
 		}
 		m := Message{
+			Type: "COMMAND",
 			Text: text,
 		}
-		err = websocket.JSON.Send(ws, m)
+		messageJson, err := json.Marshal(m)
+		err = websocket.JSON.Send(ws, messageJson)
 		if err != nil {
 			fmt.Println("Error sending message: ", err.Error())
 			break

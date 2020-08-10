@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"encoding/json"
 
 	"golang.org/x/net/websocket"
 )
 
-type Message struct {
-	Text string `json:"text"`
-}
 
 type hub struct {
 	clients          map[string]*websocket.Conn
@@ -51,9 +49,11 @@ func handler(ws *websocket.Conn, h *hub) {
 
 	for {
 		var m Message
-		err := websocket.JSON.Receive(ws, &m)
+		var data []byte
+		err := websocket.JSON.Receive(ws, &data)
+		json.Unmarshal(data, &m)	
 		if err != nil {
-			h.broadcastChan <- Message{err.Error()}
+			h.broadcastChan <- Message{"", err.Error()}
 			h.removeClient(ws)
 			return
 		}
@@ -87,7 +87,7 @@ func (h *hub) run() {
 
 // removeClient removes a conn from the pool
 func (h *hub) removeClient(conn *websocket.Conn) {
-	delete(h.clients, conn.LocalAddr().String())
+	delete(h.clients, conn.RemoteAddr().String())
 }
 
 // addClient adds a conn to the pool
@@ -97,8 +97,12 @@ func (h *hub) addClient(conn *websocket.Conn) {
 
 // broadcastMessage sends a message to all client conns in the pool
 func (h *hub) broadcastMessage(m Message) {
+	messageJson, err := json.Marshal(m)
+	if err != nil {
+		fmt.Println("Error broadcasting message: ", err)
+	}
 	for _, conn := range h.clients {
-		err := websocket.JSON.Send(conn, m)
+		err := websocket.JSON.Send(conn, messageJson)
 		if err != nil {
 			fmt.Println("Error broadcasting message: ", err)
 			return
